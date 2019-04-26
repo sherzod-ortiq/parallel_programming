@@ -1,22 +1,22 @@
 /*
-Code for calculating definite integral.
+Code for calculating definite integral with OpenMP applied.
 Task source:
 http://libweb.kpfu.ru/ebooks/06-IPh/06_45_A5-000912.pdf
 Chapter 3, "rectangle method", task 1.
-Use "gcc -o definiteIntegral definiteIntegral.c -lm" to compile.
+Use "gcc -fopenmp definiteIntegralParallel.c -o definiteIntegralParallel -lm" to compile and ./definiteIntegralParallel to execute
 */
-
 
 #include<stdio.h>
 #include<math.h>
 #include<time.h>
+#include<omp.h>
 
 double calculateIntegral(int n,double a,double b);
 double integratingFunction(double x);
-clock_t start, end, iterStart, iterEnd;
 double totalCpuTimeUsed, iterCpuTimeUsed;
+clock_t start, end, iterStart, iterEnd;
 
-void main(void){
+int main(int argc, char *argv[]){
   double a,b,eps,dx,s1,s2,b1;
   int k, n;
   a = 0;
@@ -38,7 +38,7 @@ void main(void){
   printf("Initial number of divisions n = %i\n", n);
   printf("Accuracy rate (epsilon) = %lf\n", eps);
 
-    if (n>0){   
+    if (n>0){      
       start = clock();
       s2=calculateIntegral(n,a,b);
 
@@ -55,7 +55,7 @@ void main(void){
         s2=calculateIntegral(n,a,b);
         iterEnd = clock();
         iterCpuTimeUsed = ((double)(iterEnd - iterStart)) / CLOCKS_PER_SEC;
-        printf("\nn= %i,Integral= %lf, Execution time: %f seconds",n,s1,iterCpuTimeUsed);
+        printf("\nn= %i,Integral= %lf, Execution time: %lf seconds",n,s1,iterCpuTimeUsed);
         switch (k){
           case (1): b1=fabs(s2-s1);
           case (2): b1=fabs((s2-s1)/s2);
@@ -65,26 +65,42 @@ void main(void){
       printf("\n\nINTEGRAL IS EQUAL TO: %lf\n\n\n",s2);
       end = clock();
       totalCpuTimeUsed = ((double)(end - start)) / CLOCKS_PER_SEC;
-      printf("\n Total execution time is equal to: %f seconds\n\n\n",totalCpuTimeUsed);
+      printf("\n Total execution time is equal to: %lf seconds\n\n\n",totalCpuTimeUsed);
     }else{
       printf("\t\tWHAT ARE YOU DOING???, n is always>0, reload");
     }
- 
-  }
+
+  return(0);
+}
   
 
 double calculateIntegral(int n,double a,double b){
-  double a1,d,c,dx;
+  double a1,d,dx,c;
+  int i;
   c=0;
   d=0;
-  dx=(b-a)/(double)n;
 
-  while(c<=n){
-    a1=integratingFunction(a+c*(dx))*dx;
-    d=d+a1;
-    c=c+1;
+
+  #pragma omp parallel private(a1,dx)
+  {
+    dx=(b-a)/(double)n;
+
+      a1=integratingFunction(a+c*(dx))*dx;
+      printf("\ndo = %lf\n",a1);
+
+    #pragma omp for reduction(+: d, c)
+    for(i=0; i<n; i++){
+      a1=integratingFunction(a+c*(dx))*dx;
+    
+//      #pragma omp critical
+//      {
+        d+=a1;
+        c++;
+//      }
+
+    }
+
   }
-
     return(d);
 }
 
