@@ -11,10 +11,13 @@ Use "gcc -fopenmp definiteIntegralParallel.c -o definiteIntegralParallel -lm" to
 #include<time.h>
 #include<omp.h>
 
+#define availableCoresNum  omp_get_max_threads()
+
 double calculateIntegral(int n,double a,double b);
 double integratingFunction(double x);
 double totalCpuTimeUsed, iterCpuTimeUsed;
 clock_t start, end, iterStart, iterEnd;
+int useCoresNum;
 
 int main(int argc, char *argv[]){
   double a,b,eps,dx,s1,s2,b1;
@@ -22,7 +25,7 @@ int main(int argc, char *argv[]){
   a = 0;
   b = 1;
   n = 10;
-  eps = 0.0000001;
+  eps = 0.00000001;
 
 /*
   printf("\t HELLO, THIS PROGRAM COUNTS DEFINITE INTEGRAL!\n\n");
@@ -33,10 +36,20 @@ int main(int argc, char *argv[]){
 */
 
   printf("\t HELLO, THIS PROGRAM COUNTS DEFINITE INTEGRAL!\n\n");
+  printf("Input amount of threads: "); scanf("%i",&useCoresNum);
   printf("a = %lf\n", a);
   printf("b = %lf\n", b);
   printf("Initial number of divisions n = %i\n", n);
   printf("Accuracy rate (epsilon) = %lf\n", eps);
+  printf("Cores number %i\n", availableCoresNum);
+
+
+  if(useCoresNum > availableCoresNum || useCoresNum <= 0){
+    useCoresNum = availableCoresNum;
+  }
+  
+  printf("Number of threads %i", useCoresNum);
+
 
     if (n>0){      
       start = clock();
@@ -80,24 +93,17 @@ double calculateIntegral(int n,double a,double b){
   c=0;
   d=0;
 
-
-  #pragma omp parallel private(a1,dx)
+  #pragma omp parallel private(a1,dx) reduction(+:d)
   {
+    omp_set_dynamic(0);
+    omp_set_num_threads(useCoresNum);
     dx=(b-a)/(double)n;
+    a1=integratingFunction(a+c*(dx))*dx;
 
-      a1=integratingFunction(a+c*(dx))*dx;
-      printf("\ndo = %lf\n",a1);
-
-    #pragma omp for reduction(+: d, c)
+    #pragma omp for
     for(i=0; i<n; i++){
-      a1=integratingFunction(a+c*(dx))*dx;
-    
-//      #pragma omp critical
-//      {
-        d+=a1;
-        c++;
-//      }
-
+      a1=integratingFunction(a+i*(dx))*dx;
+      d+=a1;
     }
 
   }

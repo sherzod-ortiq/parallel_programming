@@ -22,7 +22,7 @@ void main(void){
   a = 0;
   b = 1;
   n = 10;
-  eps = 0.0000001;
+  eps = 0.00000001;
 
 /*
   printf("\t HELLO, THIS PROGRAM COUNTS DEFINITE INTEGRAL!\n\n");
