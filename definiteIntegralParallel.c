@@ -11,103 +11,65 @@ Use "gcc -fopenmp definiteIntegralParallel.c -o definiteIntegralParallel -lm" to
 #include<time.h>
 #include<omp.h>
 
-#define availableCoresNum  omp_get_max_threads()
+#define availableThreadsNum  omp_get_max_threads()
 
-double calculateIntegral(int n,double a,double b);
-double integratingFunction(double x);
-double totalCpuTimeUsed, iterCpuTimeUsed;
-clock_t start, end, iterStart, iterEnd;
-int useCoresNum;
+double calculateIntegral(int divisionsNum,double a,double b, int useThreadsNum);
+double integratingFunction(double x); 
 
-int main(int argc, char *argv[]){
-  double a,b,eps,dx,s1,s2,b1;
-  int k, n;
+void main(){
+  double a, b, dx, sum, start_time, end_time, totalCpuTimeUsed;
+  int useThreadsNum, divisionsNum;
   a = 0;
   b = 1;
-  n = 10;
-  eps = 0.00000001;
+  divisionsNum = 211000000;
 
-/*
-  printf("\t HELLO, THIS PROGRAM COUNTS DEFINITE INTEGRAL!\n\n");
-  printf("Input a: "); scanf("%lf",&a);
-  printf("Input b: "); scanf("%lf",&b);
-  printf("Input the initial number of divisions n: "); scanf("%i",&n);
-  printf("Input accuracy rate (epsilon): "); scanf("%lf",&eps);
-*/
-
-  printf("\t HELLO, THIS PROGRAM COUNTS DEFINITE INTEGRAL!\n\n");
-  printf("Input amount of threads: "); scanf("%i",&useCoresNum);
+  printf("\n\t HELLO, THIS PROGRAM COUNTS DEFINITE INTEGRAL!\n\n");
+  printf("Input amount of threads to be used: "); scanf("%i",&useThreadsNum);
   printf("a = %lf\n", a);
   printf("b = %lf\n", b);
-  printf("Initial number of divisions n = %i\n", n);
-  printf("Accuracy rate (epsilon) = %lf\n", eps);
-  printf("Cores number %i\n", availableCoresNum);
+  printf("Initial number of divisions divisionsNum = %i\n", divisionsNum);
+  printf("Total number of CPU cores %i\n", availableThreadsNum);
 
-
-  if(useCoresNum > availableCoresNum || useCoresNum <= 0){
-    useCoresNum = availableCoresNum;
+  if(useThreadsNum > availableThreadsNum || useThreadsNum <= 0){
+    useThreadsNum = availableThreadsNum;
   }
   
-  printf("Number of threads %i", useCoresNum);
+  printf("Number of threads in use %i\n", useThreadsNum);
 
+  start_time = omp_get_wtime();
 
-    if (n>0){      
-      start = clock();
-      s2=calculateIntegral(n,a,b);
+    sum = calculateIntegral(divisionsNum,a,b,useThreadsNum);
 
-      if (fabs(s2)<1){
-        k=1;
-      }else{
-        k=2;
-      }
-      
-      do{
-        s1=s2;
-        n=n*2;
-        iterStart = clock();
-        s2=calculateIntegral(n,a,b);
-        iterEnd = clock();
-        iterCpuTimeUsed = ((double)(iterEnd - iterStart)) / CLOCKS_PER_SEC;
-        printf("\nn= %i,Integral= %lf, Execution time: %lf seconds",n,s1,iterCpuTimeUsed);
-        switch (k){
-          case (1): b1=fabs(s2-s1);
-          case (2): b1=fabs((s2-s1)/s2);
-        }
-            
-      } while(b1>eps);
-      printf("\n\nINTEGRAL IS EQUAL TO: %lf\n\n\n",s2);
-      end = clock();
-      totalCpuTimeUsed = ((double)(end - start)) / CLOCKS_PER_SEC;
-      printf("\n Total execution time is equal to: %lf seconds\n\n\n",totalCpuTimeUsed);
-    }else{
-      printf("\t\tWHAT ARE YOU DOING???, n is always>0, reload");
-    }
+  end_time = omp_get_wtime();
+  totalCpuTimeUsed = end_time - start_time;
 
-  return(0);
+  printf("Integral is equal to: %lf\n",sum);      
+  printf("Total execution time is equal to: %lf seconds\n\n",totalCpuTimeUsed);
 }
   
 
-double calculateIntegral(int n,double a,double b){
-  double a1,d,dx,c;
+double calculateIntegral(int divisionsNum,double a,double b, int useThreadsNum){
+  double local_sum,global_sum,dx;
   int i;
-  c=0;
-  d=0;
 
-  #pragma omp parallel private(a1,dx) reduction(+:d)
+  omp_set_dynamic(0);// Explicitly disable dynamic teams
+  omp_set_num_threads(useThreadsNum); // Set number of cores to be used
+  #pragma omp parallel default(none) private(local_sum,i) shared(global_sum, a, b, dx, divisionsNum)
   {
-    omp_set_dynamic(0);
-    omp_set_num_threads(useCoresNum);
-    dx=(b-a)/(double)n;
-    a1=integratingFunction(a+c*(dx))*dx;
+    local_sum=0;
+    global_sum = 0;
+    dx=(b-a)/(double)divisionsNum;
 
-    #pragma omp for
-    for(i=0; i<n; i++){
-      a1=integratingFunction(a+i*(dx))*dx;
-      d+=a1;
+    #pragma omp for schedule(static)
+    for(i=0; i<divisionsNum; i++){
+      local_sum += integratingFunction(a+i*(dx))*dx;
     }
 
+    #pragma omp critical 
+      global_sum += local_sum;
+
   }
-    return(d);
+    return(global_sum);
 }
 
 
